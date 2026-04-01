@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bouncy Bouncy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            overflow: hidden;
+            touch-action: none;
+        }
+        canvas {
+            max-width: 100%;
+            max-height: 60vh;
+            touch-action: none;
+        }
+        /* Custom toggle styling */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #4ade80;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #4ade80;
+        }
+        input[type=range] {
+            accent-color: #4ade80;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="text-center mb-4">
+        <h1 class="text-3xl font-bold mb-1 tracking-tight text-white">Bouncy Bouncy</h1>
+    </div>
+
+    <!-- Simulation Container -->
+    <div class="relative flex items-center justify-center bg-black border border-gray-800 rounded-xl p-2 shadow-2xl">
+        <canvas id="simCanvas"></canvas>
+    </div>
+
+    <!-- Lower Control Panel -->
+    <div class="mt-6 w-full max-w-md space-y-6">
+        
+        <!-- Action Buttons -->
+        <div class="flex gap-4 justify-center">
+            <button id="startBtn" class="px-8 py-2 bg-green-600 hover:bg-green-500 text-white rounded-full font-semibold transition-all active:scale-95 shadow-lg shadow-green-900/20">
+                Start
+            </button>
+            <button id="stopBtn" class="px-8 py-2 bg-red-600 hover:bg-red-500 text-white rounded-full font-semibold transition-all active:scale-95 shadow-lg shadow-red-900/20">
+                Stop
+            </button>
+            <button id="resetBtn" class="px-8 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-semibold transition-all active:scale-95 shadow-lg shadow-blue-900/20">
+                Reset
+            </button>
+        </div>
+
+        <!-- Sliders & Toggles Panel -->
+        <div class="bg-gray-900/50 p-5 rounded-2xl border border-gray-800 space-y-5">
+            <div class="flex flex-col gap-5">
+                
+                <div class="flex items-center justify-between">
+                    <!-- Freeze Toggle -->
+                    <div class="flex items-center gap-3">
+                        <span class="text-gray-400 text-xs uppercase tracking-wider font-bold">Freeze Frame:</span>
+                        <div class="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
+                            <input type="checkbox" name="toggle" id="freezeToggle" checked class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer outline-none transition-all duration-300"/>
+                            <label for="freezeToggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer transition-colors duration-300"></label>
+                        </div>
+                    </div>
+                    
+                    <!-- Ball Count Display -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400 text-xs uppercase tracking-wider font-bold">Balls:</span>
+                        <div class="bg-black/40 px-2 py-0.5 rounded border border-white/10 flex items-center gap-1">
+                            <span id="ballCount" class="text-sm font-bold font-mono text-green-400">2</span>
+                            <span class="text-[10px] font-bold text-gray-300">/ 200</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                    <!-- Speed Slider -->
+                    <div class="flex flex-col gap-2">
+                        <div class="flex justify-between w-full">
+                            <span class="text-gray-400 text-xs uppercase tracking-wider font-bold">Speed</span>
+                            <span id="speedVal" class="text-green-400 text-xs font-mono">5</span>
+                        </div>
+                        <input type="range" id="speedSlider" min="1" max="15" value="5" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- Size Slider -->
+                    <div class="flex flex-col gap-2">
+                        <div class="flex justify-between w-full">
+                            <span class="text-gray-400 text-xs uppercase tracking-wider font-bold">Size</span>
+                            <span id="sizeVal" class="text-green-400 text-xs font-mono">10</span>
+                        </div>
+                        <input type="range" id="sizeSlider" min="4" max="25" value="10" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- Eccentricity Slider -->
+                    <div class="flex flex-col gap-2 sm:col-span-2">
+                        <div class="flex justify-between w-full">
+                            <span class="text-gray-400 text-xs uppercase tracking-wider font-bold">Eccentricity (Bounce Chaos)</span>
+                            <span id="eccVal" class="text-green-400 text-xs font-mono">0.35</span>
+                        </div>
+                        <input type="range" id="eccSlider" min="0" max="1" step="0.05" value="0.35" class="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const freezeToggle = document.getElementById('freezeToggle');
+        const ballCountDisplay = document.getElementById('ballCount');
+        
+        const speedSlider = document.getElementById('speedSlider');
+        const sizeSlider = document.getElementById('sizeSlider');
+        const eccSlider = document.getElementById('eccSlider');
+        const speedValDisplay = document.getElementById('speedVal');
+        const sizeValDisplay = document.getElementById('sizeVal');
+        const eccValDisplay = document.getElementById('eccVal');
+
+        let ballRadius = parseInt(sizeSlider.value);
+        let baseSpeed = parseInt(speedSlider.value); 
+        let currentEccentricity = parseFloat(eccSlider.value);
+        
+        const MAX_BALLS = 200; 
+        const COOLDOWN_PADDING = 10; 
+        const SPAWN_LOCK_TICKS = 30; 
+        const FREEZE_DURATION = 150; 
+        
+        let width, height, centerX, centerY, outerRadius;
+        let animationId;
+        let isRunning = false;
+        let ballIdCounter = 0;
+        let pauseUntil = 0;
+
+        let balls = [];
+        let ripples = [];
+
+        speedSlider.addEventListener('input', (e) => {
+            const newSpeed = parseInt(e.target.value);
+            speedValDisplay.textContent = newSpeed;
+            balls.forEach(ball => {
+                const angle = Math.atan2(ball.vy, ball.vx);
+                ball.vx = Math.cos(angle) * newSpeed;
+                ball.vy = Math.sin(angle) * newSpeed;
+                ball.speed = newSpeed;
+            });
+            baseSpeed = newSpeed;
+        });
+
+        sizeSlider.addEventListener('input', (e) => {
+            ballRadius = parseInt(e.target.value);
+            sizeValDisplay.textContent = ballRadius;
+            draw();
+        });
+
+        eccSlider.addEventListener('input', (e) => {
+            currentEccentricity = parseFloat(e.target.value);
+            eccValDisplay.textContent = currentEccentricity.toFixed(2);
+        });
+
+        function parseToHsl(colorStr) {
+            if (colorStr.startsWith('hsl')) {
+                const values = colorStr.match(/\d+(\.\d+)?/g);
+                return { h: parseFloat(values[0]), s: parseFloat(values[1]), l: parseFloat(values[2]) };
+            }
+            let r = parseInt(colorStr.slice(1, 3), 16) / 255;
+            let g = parseInt(colorStr.slice(3, 5), 16) / 255;
+            let b = parseInt(colorStr.slice(5, 7), 16) / 255;
+            let max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+            if (max == min) { h = s = 0; } else {
+                let d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+            return { h: h * 360, s: s * 100, l: l * 100 };
+        }
+
+        function mixColors(color1, color2) {
+            const hsl1 = parseToHsl(color1);
+            const hsl2 = parseToHsl(color2);
+            let h1 = hsl1.h;
+            let h2 = hsl2.h;
+            let diff = h2 - h1;
+            
+            if (Math.abs(diff) > 180) {
+                if (h2 > h1) h1 += 360;
+                else h2 += 360;
+            }
+            
+            let geneticMidpoint = (h1 + h2) / 2;
+            let randomDrift = (Math.random() - 0.5) * 120; 
+            let mixedHue = (geneticMidpoint + randomDrift) % 360;
+            if (mixedHue < 0) mixedHue += 360;
+            
+            const mixedSaturation = Math.min(100, Math.max(40, ((hsl1.s + hsl2.s) / 2) + (Math.random() - 0.5) * 50));
+            const mixedLightness = Math.min(90, Math.max(30, ((hsl1.l + hsl2.l) / 2) + (Math.random() - 0.5) * 40));
+            
+            return `hsl(${mixedHue}, ${mixedSaturation}%, ${mixedLightness}%)`;
+        }
+
+        function resize() {
+            const size = Math.min(window.innerWidth * 0.9, 500);
+            canvas.width = size;
+            canvas.height = size;
+            width = canvas.width;
+            height = canvas.height;
+            centerX = width / 2;
+            centerY = height / 2;
+            outerRadius = (width / 2) - 20;
+            if (balls.length === 0) resetBalls();
+        }
+
+        function createBall(x, y, color, isNewSpawn = false) {
+            const moveAngle = Math.random() * Math.PI * 2;
+            return {
+                id: ballIdCounter++,
+                x: x, y: y,
+                vx: Math.cos(moveAngle) * baseSpeed,
+                vy: Math.sin(moveAngle) * baseSpeed,
+                speed: baseSpeed,
+                color: color,
+                activeCollisions: new Set(),
+                ticksSinceSpawn: 0,
+                canSpawn: !isNewSpawn 
+            };
+        }
+
+        function createRipple(x, y, color) {
+            ripples.push({
+                x, y, color,
+                radius: ballRadius,
+                alpha: 1.0,
+                maxRadius: ballRadius * 5
+            });
+        }
+
+        function getRandomColor() {
+            const h = Math.floor(Math.random() * 360);
+            return { h, str: `hsl(${h}, 90%, 60%)` };
+        }
+
+        function resetBalls() {
+            ballIdCounter = 0;
+            pauseUntil = 0;
+            ripples = [];
+            const colorA = getRandomColor();
+            let colorB = getRandomColor();
+            let attempts = 0;
+            while (Math.abs(colorA.h - colorB.h) < 60 && attempts < 10) {
+                colorB = getRandomColor();
+                attempts++;
+            }
+            balls = [
+                createBall(centerX - 80, centerY, colorA.str), 
+                createBall(centerX + 80, centerY, colorB.str)
+            ];
+            ballCountDisplay.textContent = balls.length;
+            draw();
+        }
+
+        function reflectBall(ball, nx, ny) {
+            const dotProduct = ball.vx * nx + ball.vy * ny;
+            if (dotProduct > 0) {
+                let rx = ball.vx - 2 * dotProduct * nx;
+                let ry = ball.vy - 2 * dotProduct * ny;
+                const currentAngle = Math.atan2(ry, rx);
+                const randomOffset = (Math.random() - 0.5) * 2 * currentEccentricity;
+                const newAngle = currentAngle + randomOffset;
+                const speedMod = 0.98 + Math.random() * 0.04; 
+                ball.vx = Math.cos(newAngle) * (ball.speed * speedMod);
+                ball.vy = Math.sin(newAngle) * (ball.speed * speedMod);
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw Boundary
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, outerRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.closePath();
+
+            // Draw Ripples (Collision Highlights)
+            ripples.forEach(ripple => {
+                ctx.beginPath();
+                ctx.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2);
+                const hsl = parseToHsl(ripple.color);
+                ctx.strokeStyle = `hsla(${hsl.h}, ${hsl.s}%, ${hsl.l}%, ${ripple.alpha})`;
+                ctx.lineWidth = 4;
+                ctx.stroke();
+                ctx.closePath();
+            });
+
+            // Draw Balls
+            balls.forEach(ball => {
+                ctx.shadowBlur = ball.canSpawn ? 12 : 4;
+                ctx.shadowColor = ball.color;
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, ballRadius, 0, Math.PI * 2);
+                ctx.fillStyle = ball.color;
+                ctx.globalAlpha = ball.canSpawn ? 1.0 : 0.6;
+                ctx.fill();
+                ctx.closePath();
+                ctx.shadowBlur = 0;
+            });
+            ctx.globalAlpha = 1.0;
+        }
+
+        function updateRipples() {
+            for (let i = ripples.length - 1; i >= 0; i--) {
+                const r = ripples[i];
+                r.radius += (r.maxRadius - r.radius) * 0.15;
+                r.alpha *= 0.88; 
+                if (r.alpha < 0.01) ripples.splice(i, 1);
+            }
+        }
+
+        function update() {
+            if (!isRunning) return;
+            const now = Date.now();
+
+            if (freezeToggle.checked && now < pauseUntil) {
+                updateRipples();
+                draw();
+                animationId = requestAnimationFrame(update);
+                return;
+            }
+
+            updateRipples();
+
+            balls.forEach(ball => {
+                ball.x += ball.vx;
+                ball.y += ball.vy;
+                
+                if (!ball.canSpawn) {
+                    ball.ticksSinceSpawn++;
+                    if (ball.ticksSinceSpawn > SPAWN_LOCK_TICKS) {
+                        ball.canSpawn = true;
+                    }
+                }
+            });
+
+            const newSpawnedBalls = [];
+            const diameter = ballRadius * 2;
+            const resetDist = diameter + COOLDOWN_PADDING;
+            let triggeredFreeze = false;
+
+            for (let i = 0; i < balls.length; i++) {
+                for (let j = i + 1; j < balls.length; j++) {
+                    const b1 = balls[i];
+                    const b2 = balls[j];
+                    const dx = b2.x - b1.x;
+                    const dy = b2.y - b1.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < diameter) {
+                        const shouldSpawn = b1.canSpawn && b2.canSpawn && !b1.activeCollisions.has(b2.id);
+                        if (!b1.activeCollisions.has(b2.id)) {
+                            const nx = dx / (dist || 1);
+                            const ny = dy / (dist || 1);
+                            reflectBall(b1, nx, ny);
+                            reflectBall(b2, -nx, -ny);
+                            b1.activeCollisions.add(b2.id);
+                            b2.activeCollisions.add(b1.id);
+                            
+                            if (shouldSpawn && balls.length + newSpawnedBalls.length < MAX_BALLS) {
+                                const midX = (b1.x + b2.x) / 2;
+                                const midY = (b1.y + b2.y) / 2;
+                                const mixedColor = mixColors(b1.color, b2.color);
+                                createRipple(midX, midY, mixedColor);
+                                newSpawnedBalls.push(createBall(midX, midY, mixedColor, true));
+                                triggeredFreeze = true;
+                            }
+                        }
+                        const nx = dx / (dist || 1);
+                        const ny = dy / (dist || 1);
+                        const overlap = (diameter - dist) / 2;
+                        b1.x -= nx * (overlap + 0.1);
+                        b1.y -= ny * (overlap + 0.1);
+                        b2.x += nx * (overlap + 0.1);
+                        b2.y += ny * (overlap + 0.1);
+                    } else if (dist > resetDist) {
+                        b1.activeCollisions.delete(b2.id);
+                        b2.activeCollisions.delete(b1.id);
+                    }
+                }
+            }
+            
+            if (newSpawnedBalls.length > 0) {
+                balls.push(...newSpawnedBalls);
+                ballCountDisplay.textContent = balls.length;
+                if (triggeredFreeze && freezeToggle.checked) {
+                    pauseUntil = Date.now() + FREEZE_DURATION;
+                }
+            }
+
+            balls.forEach(ball => {
+                const dx = ball.x - centerX;
+                const dy = ball.y - centerY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist + ballRadius > outerRadius) {
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+                    ball.x = centerX + nx * (outerRadius - ballRadius);
+                    ball.y = centerY + ny * (outerRadius - ballRadius);
+                    reflectBall(ball, nx, ny);
+                }
+            });
+
+            draw();
+            animationId = requestAnimationFrame(update);
+        }
+
+        startBtn.addEventListener('click', () => { if (!isRunning) { isRunning = true; update(); } });
+        stopBtn.addEventListener('click', () => { isRunning = false; cancelAnimationFrame(animationId); });
+        resetBtn.addEventListener('click', () => { 
+            isRunning = false; 
+            cancelAnimationFrame(animationId); 
+            baseSpeed = parseInt(speedSlider.value);
+            ballRadius = parseInt(sizeSlider.value);
+            currentEccentricity = parseFloat(eccSlider.value);
+            resetBalls(); 
+        });
+        window.addEventListener('resize', resize);
+        window.onload = resize;
+    </script>
+</body>
+</html>
